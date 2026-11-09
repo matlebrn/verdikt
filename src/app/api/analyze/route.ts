@@ -16,7 +16,7 @@ async function runModel(body: ReturnType<typeof requestSchema.parse>): Promise<V
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
     max_tokens: 8000,
     system: SYSTEM_PROMPT,
-    output_config: { format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
+    output_config: { effort: (process.env.ANTHROPIC_EFFORT as "low" | "medium" | "high" | undefined) || "low", format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
     messages: [{ role: "user", content: buildUserContent(body) }],
   });
   const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
