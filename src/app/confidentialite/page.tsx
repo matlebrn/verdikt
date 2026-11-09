@@ -11,14 +11,16 @@ export default function Page() {
         <h2 className="text-2xl font-bold">La conversation que tu envoies</h2>
         <p className="mt-2">
           Captures, export ou messages saisis sont transmis à l'IA (Claude, d'Anthropic) le temps de l'analyse. Verdikt
-          ne les enregistre pas : ni les images, ni le texte, ni ton brouillon de réponse.
+          ne les enregistre pas sur ses serveurs : ni les images, ni le texte, ni ton brouillon de réponse. Ce que tu saisis
+          est gardé uniquement sur ton appareil, pour ne rien perdre si la page se recharge, jusqu'à ce que tu cliques
+          sur « Tout effacer » ou que tu lances une autre analyse.
         </p>
       </section>
 
       <section>
         <h2 className="text-2xl font-bold">Le résultat de l'analyse</h2>
         <p className="mt-2">
-          Sans compte, rien n'est gardé : le résultat disparaît quand tu quittes la page. Avec un compte, le résultat
+          Sans compte, rien n'est gardé sur les serveurs : le dernier résultat reste seulement sur ton appareil. Avec un compte, le résultat
           est enregistré dans ton historique. Il contient de courtes citations des messages. Tu peux supprimer une
           analyse, ou ton compte entier, à tout moment.
         </p>

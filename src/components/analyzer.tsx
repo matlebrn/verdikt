@@ -7,7 +7,11 @@ import { RELATION_LABELS, RELATIONS, type AnalyzeRequest, type AnalyzeResponse, 
 import { authHeaders, useAuth } from "./auth";
 import { VerdictView } from "./verdict";
 
-type Img = { media_type: "image/jpeg"; data: string; preview: string };
+type Img = { media_type: "image/jpeg"; data: string };
+const preview = (img: Img) => `data:image/jpeg;base64,${img.data}`;
+
+/** Tout ce que la personne a saisi est gardé sur son appareil, pour survivre à un rechargement ou à une mise à jour. */
+const STORE_KEY = "verdikt:saisie-v1";
 type Msg = { author: "me" | "other"; text: string };
 
 const MODES: { id: InputMode; label: string }[] = [
@@ -25,7 +29,7 @@ async function shrink(file: File): Promise<Img> {
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   const url = canvas.toDataURL("image/jpeg", 0.82);
-  return { media_type: "image/jpeg", data: url.split(",")[1], preview: url };
+  return { media_type: "image/jpeg", data: url.split(",")[1] };
 }
 
 export function Analyzer() {
@@ -46,6 +50,64 @@ export function Analyzer() {
   const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLInputElement>(null);
+  const [restored, setRestored] = useState(false);
+
+  // Au chargement : on reprend ce qui avait été saisi (et le dernier résultat affiché).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (saved && typeof saved === "object") {
+        /* eslint-disable react-hooks/set-state-in-effect */
+        if (MODES.some((m) => m.id === saved.mode)) setMode(saved.mode);
+        if (Array.isArray(saved.images)) setImages(saved.images.slice(0, MAX_IMAGES));
+        if (typeof saved.text === "string") setText(saved.text);
+        if (typeof saved.meName === "string") setMeName(saved.meName);
+        if (Array.isArray(saved.messages)) setMessages(saved.messages.slice(0, MAX_MANUAL_MESSAGES));
+        if (typeof saved.line === "string") setLine(saved.line);
+        if (RELATIONS.includes(saved.relation)) setRelation(saved.relation);
+        if (typeof saved.context === "string") setContext(saved.context);
+        if (typeof saved.draft === "string") setDraft(saved.draft);
+        if (saved.response?.result) setResponse(saved.response);
+        /* eslint-enable react-hooks/set-state-in-effect */
+      }
+    } catch {
+      /* stockage indisponible ou contenu abîmé : on repart d'une page vide */
+    }
+    setRestored(true);
+  }, []);
+
+  // À chaque modification : on enregistre sur l'appareil.
+  useEffect(() => {
+    if (!restored) return;
+    const state = { mode, images, text, meName, messages, line, relation, context, draft, response };
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch {
+      // Stockage plein (captures trop lourdes) : on garde au moins tout le texte.
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({ ...state, images: [] }));
+      } catch {
+        /* stockage indisponible */
+      }
+    }
+  }, [restored, mode, images, text, meName, messages, line, relation, context, draft, response]);
+
+  function reset() {
+    setImages([]);
+    setText("");
+    setMeName("");
+    setMessages([]);
+    setLine("");
+    setRelation("");
+    setContext("");
+    setDraft("");
+    setError(null);
+    setNotice(null);
+    setResponse(null);
+  }
+
+  const hasInput =
+    images.length > 0 || messages.length > 0 || Boolean(text || line || context || draft || meName || relation);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,8 +202,11 @@ export function Analyzer() {
       <div ref={resultRef} className="pt-4">
         <VerdictView v={response.result} />
         <div className="mt-10 flex flex-wrap items-center gap-3 border-t border-line pt-6">
-          <button type="button" className="btn btn-primary" onClick={() => setResponse(null)}>
+          <button type="button" className="btn btn-primary" onClick={reset}>
             Analyser une autre conversation
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setResponse(null)}>
+            Modifier et relancer
           </button>
           {response.id ? (
             <Link href="/historique" className="btn btn-ghost">
@@ -193,7 +258,7 @@ export function Analyzer() {
                 {images.map((img, i) => (
                   <li key={i} className="relative shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.preview} alt={`Capture ${i + 1}`} className="h-44 rounded-xl border border-line" />
+                    <img src={preview(img)} alt={`Capture ${i + 1}`} className="h-44 rounded-xl border border-line" />
                     <button
                       type="button"
                       aria-label={`Retirer la capture ${i + 1}`}
@@ -397,6 +462,15 @@ export function Analyzer() {
         <button type="button" className="btn btn-primary w-full sm:w-auto" disabled={!ready || busy} onClick={submit}>
           {busy ? "Lecture de la conversation…" : "Analyser la conversation"}
         </button>
+        {hasInput && !busy && (
+          <button
+            type="button"
+            className="btn btn-ghost mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
+            onClick={() => window.confirm("Effacer tout ce que tu as saisi ?") && reset()}
+          >
+            Tout effacer
+          </button>
+        )}
         {quota && (
           <p className="mt-3 text-sm text-muted">
             {quota.remaining > 0
@@ -413,7 +487,8 @@ export function Analyzer() {
           </p>
         )}
         <p className="mt-2 text-sm text-muted">
-          La conversation est envoyée à l'IA pour être lue, puis n'est pas conservée par Verdikt.
+          La conversation est envoyée à l'IA pour être lue, puis n'est pas conservée par Verdikt. Ta saisie reste
+          enregistrée sur cet appareil tant que tu ne l'effaces pas.
         </p>
       </div>
     </div>
