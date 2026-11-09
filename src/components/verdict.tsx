@@ -34,7 +34,7 @@ export function Balance({ me, other, meName, otherName }: { me: number; other: n
         role="img"
         aria-label={`Part de responsabilité : ${meName} ${me} %, ${otherName} ${other} %`}
       >
-        <div className="flex items-center bg-me px-4 text-white" style={{ width: `${Math.max(me, 14)}%` }}>
+        <div className="flex items-center bg-me px-4 text-white" style={{ width: `${Math.min(Math.max(me, 22), 78)}%` }}>
           {me}&nbsp;%
         </div>
         <div className="flex flex-1 items-center justify-end bg-other px-4 text-[#17142e]">{other}&nbsp;%</div>
