@@ -14,6 +14,13 @@ const preview = (img: Img) => `data:image/jpeg;base64,${img.data}`;
 const STORE_KEY = "verdikt:saisie-v1";
 type Msg = { author: "me" | "other"; text: string };
 
+const WAIT_STEPS = [
+  "Lecture des messages",
+  "Repérage des moments clés",
+  "Analyse du ton de chacun",
+  "Rédaction du verdict",
+];
+
 const MODES: { id: InputMode; label: string }[] = [
   { id: "captures", label: "Captures d'écran" },
   { id: "export", label: "Export de la conversation" },
@@ -51,6 +58,15 @@ export function Analyzer() {
   const resultRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLInputElement>(null);
   const [restored, setRestored] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [step, setStep] = useState(0);
+
+  // Pendant l'attente, on montre où en est la lecture.
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(() => setStep((n) => Math.min(n + 1, WAIT_STEPS.length - 1)), 4500);
+    return () => clearInterval(timer);
+  }, [busy]);
 
   // Au chargement : on reprend ce qui avait été saisi (et le dernier résultat affiché).
   useEffect(() => {
@@ -67,7 +83,10 @@ export function Analyzer() {
         if (RELATIONS.includes(saved.relation)) setRelation(saved.relation);
         if (typeof saved.context === "string") setContext(saved.context);
         if (typeof saved.draft === "string") setDraft(saved.draft);
-        if (saved.response?.result) setResponse(saved.response);
+        if (saved.response?.result) {
+          setResponse(saved.response);
+          setShowResult(saved.showResult !== false);
+        }
         /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
@@ -79,7 +98,7 @@ export function Analyzer() {
   // À chaque modification : on enregistre sur l'appareil.
   useEffect(() => {
     if (!restored) return;
-    const state = { mode, images, text, meName, messages, line, relation, context, draft, response };
+    const state = { mode, images, text, meName, messages, line, relation, context, draft, response, showResult };
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
     } catch {
@@ -90,7 +109,7 @@ export function Analyzer() {
         /* stockage indisponible */
       }
     }
-  }, [restored, mode, images, text, meName, messages, line, relation, context, draft, response]);
+  }, [restored, mode, images, text, meName, messages, line, relation, context, draft, response, showResult]);
 
   function reset() {
     setImages([]);
@@ -104,7 +123,12 @@ export function Analyzer() {
     setError(null);
     setNotice(null);
     setResponse(null);
+    setShowResult(false);
+    window.scrollTo({ top: 0 });
   }
+
+  const askReset = () =>
+    window.confirm("Réinitialiser ? La conversation et l'analyse affichées seront effacées de cet appareil.") && reset();
 
   const hasInput =
     images.length > 0 || messages.length > 0 || Boolean(text || line || context || draft || meName || relation);
@@ -163,6 +187,7 @@ export function Analyzer() {
 
   async function submit() {
     setBusy(true);
+    setStep(0);
     setError(null);
     setNotice(null);
     const common = {
@@ -189,6 +214,7 @@ export function Analyzer() {
         return;
       }
       setResponse(data as AnalyzeResponse);
+      setShowResult(true);
       requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch {
       setError("Connexion impossible. Vérifie ton réseau et réessaie.");
@@ -197,32 +223,42 @@ export function Analyzer() {
     }
   }
 
-  if (response) {
+  if (response && showResult) {
     return (
-      <div ref={resultRef} className="pt-4">
+      <div ref={resultRef} className="pt-2">
         <VerdictView v={response.result} />
-        <div className="mt-10 flex flex-wrap items-center gap-3 border-t border-line pt-6">
-          <button type="button" className="btn btn-primary" onClick={reset}>
-            Analyser une autre conversation
+        <div className="card mt-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setShowResult(false);
+              window.scrollTo({ top: 0 });
+            }}
+          >
+            Continuer cette conversation
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setResponse(null)}>
-            Modifier et relancer
+          <button type="button" className="btn btn-danger" onClick={askReset}>
+            Réinitialiser
           </button>
-          {response.id ? (
+          {response.id && (
             <Link href="/historique" className="btn btn-ghost">
               Voir mon historique
             </Link>
-          ) : (
-            !session && (
-              <p className="text-sm text-muted">
-                Cette analyse n'est pas enregistrée.{" "}
+          )}
+          <p className="basis-full text-sm text-muted">
+            La conversation reste en place tant que tu n'appuies pas sur Réinitialiser : tu peux y ajouter la suite et
+            relancer l'analyse.
+            {!response.id && !session && (
+              <>
+                {" "}
                 <Link href="/connexion" className="underline underline-offset-2">
                   Crée un compte
                 </Link>{" "}
-                pour garder les prochaines.
-              </p>
-            )
-          )}
+                pour garder un historique.
+              </>
+            )}
+          </p>
         </div>
       </div>
     );
@@ -232,7 +268,20 @@ export function Analyzer() {
     <div className="pt-4">
       <h1 className="text-4xl font-extrabold sm:text-5xl">Quelle conversation on regarde ?</h1>
 
-      <div role="tablist" aria-label="Façon d'envoyer la conversation" className="mt-7 flex flex-wrap gap-2">
+      {response && (
+        <div className="card mt-6 flex flex-wrap items-center justify-between gap-3 border-me! bg-me-soft!">
+          <p className="min-w-0">
+            <span className="block text-sm text-muted">Dernière analyse de cette conversation</span>
+            <strong className="font-display text-lg">{response.result.title}</strong>
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => setShowResult(true)}>
+            Revoir l'analyse
+          </button>
+        </div>
+      )}
+
+      <div className="card mt-6">
+      <div role="tablist" aria-label="Façon d'envoyer la conversation" className="segmented">
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -240,7 +289,7 @@ export function Analyzer() {
             type="button"
             aria-selected={mode === m.id}
             onClick={() => setMode(m.id)}
-            className="rounded-full border-[1.5px] border-line px-4 py-2 font-semibold aria-selected:border-ink aria-selected:bg-ink aria-selected:text-bg"
+            className="segment"
           >
             {m.label}
           </button>
@@ -382,7 +431,7 @@ export function Analyzer() {
                   disabled={!line.trim()}
                   onClick={() => addMessage("other")}
                 >
-                  Envoyé par l'autre
+                  Par l'autre
                 </button>
                 <button
                   type="button"
@@ -390,7 +439,7 @@ export function Analyzer() {
                   disabled={!line.trim()}
                   onClick={() => addMessage("me")}
                 >
-                  Envoyé par moi
+                  Par moi
                 </button>
               </div>
             </div>
@@ -398,7 +447,10 @@ export function Analyzer() {
         )}
       </div>
 
-      <div className="mt-9 space-y-5 border-t border-line pt-7">
+      </div>
+
+      <div className="card mt-5 space-y-5">
+        <h2 className="text-xl font-bold">Pour une analyse plus juste</h2>
         <fieldset>
           <legend className="mb-2 font-semibold">
             C'est une conversation avec… <span className="font-normal text-muted">(facultatif)</span>
@@ -459,16 +511,23 @@ export function Analyzer() {
             {error}
           </p>
         )}
+        {busy && (
+          <ol className="card mb-4 space-y-2.5" aria-label="Avancement de l'analyse">
+            {WAIT_STEPS.map((label, i) => (
+              <li key={label} className={`flex items-center gap-3 ${i > step ? "text-muted opacity-60" : ""}`}>
+                <span className={`wait-dot ${i < step ? "wait-done" : i === step ? "wait-now" : ""}`} aria-hidden />
+                {label}
+                {i === step && "…"}
+              </li>
+            ))}
+          </ol>
+        )}
         <button type="button" className="btn btn-primary w-full sm:w-auto" disabled={!ready || busy} onClick={submit}>
-          {busy ? "Lecture de la conversation…" : "Analyser la conversation"}
+          {busy ? "Analyse en cours…" : response ? "Relancer l'analyse" : "Analyser la conversation"}
         </button>
-        {hasInput && !busy && (
-          <button
-            type="button"
-            className="btn btn-ghost mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto"
-            onClick={() => window.confirm("Effacer tout ce que tu as saisi ?") && reset()}
-          >
-            Tout effacer
+        {(hasInput || response) && !busy && (
+          <button type="button" className="btn btn-danger mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto" onClick={askReset}>
+            Réinitialiser
           </button>
         )}
         {quota && (
@@ -488,7 +547,7 @@ export function Analyzer() {
         )}
         <p className="mt-2 text-sm text-muted">
           La conversation est envoyée à l'IA pour être lue, puis n'est pas conservée par Verdikt. Ta saisie reste
-          enregistrée sur cet appareil tant que tu ne l'effaces pas.
+          enregistrée sur cet appareil tant que tu n'appuies pas sur Réinitialiser.
         </p>
       </div>
     </div>

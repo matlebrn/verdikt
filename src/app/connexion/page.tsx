@@ -83,7 +83,7 @@ export default function Page() {
   if (session && recovery && !passwordChanged) {
     return (
       <form
-        className="max-w-md space-y-4 pt-4"
+        className="card mx-auto mt-4 max-w-md space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           run(async () => {
@@ -121,7 +121,7 @@ export default function Page() {
 
   if (session) {
     return (
-      <div className="max-w-md space-y-5 pt-4">
+      <div className="card mx-auto mt-4 max-w-md space-y-5">
         <h1 className="text-4xl font-extrabold">Ton compte</h1>
         <p>
           Connecté avec <strong>{session.user.email}</strong>
@@ -167,7 +167,7 @@ export default function Page() {
   };
 
   return (
-    <form className="max-w-md space-y-4 pt-4" onSubmit={onSubmit}>
+    <form className="card mx-auto mt-4 max-w-md space-y-4" onSubmit={onSubmit}>
       <h1 className="text-4xl font-extrabold">{titles[view]}</h1>
       {view === "signup" && <p className="text-muted">10 analyses par jour et un historique de tes analyses.</p>}
       <div>

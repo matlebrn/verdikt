@@ -72,7 +72,7 @@ export default function Page() {
         </div>
       )}
       {rows && rows.length > 0 && (
-        <ul className="mt-6 divide-y divide-line border-y border-line">
+        <ul className="card mt-6 divide-y divide-line py-1!">
           {rows.map((r) => (
             <li key={r.id} className="flex items-center gap-3 py-4">
               <Link href={`/analyse/${r.id}`} className="min-w-0 flex-1">
