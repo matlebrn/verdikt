@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f1effa;
+  --surface: #ffffff;
+  --ink: #17142e;
+  --muted: #5e5a7a;
+  --line: #d9d5ec;
+  --me: #4f35f2;
+  --me-soft: #e6e1ff;
+  --other: #ff8a3d;
+  --other-soft: #ffe8d6;
+  --alert: #c2183a;
+  --alert-soft: #fde4e9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121022;
+    --surface: #1c1933;
+    --ink: #efedfa;
+    --muted: #aaa6c6;
+    --line: #322e52;
+    --me: #8b7bff;
+    --me-soft: #2a2456;
+    --other: #ff9d5c;
+    --other-soft: #46301f;
+    --alert: #ff6b88;
+    --alert-soft: #45182a;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-me: var(--me);
+  --color-me-soft: var(--me-soft);
+  --color-other: var(--other);
+  --color-other-soft: var(--other-soft);
+  --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
+  --font-sans: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Figtree Variable", ui-sans-serif, sans-serif;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 3px solid var(--me);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Bulles de conversation : la queue indique qui parle */
+.bubble {
+  max-width: 85%;
+  padding: 0.6rem 0.9rem;
+  border-radius: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.bubble-me {
+  margin-left: auto;
+  background: var(--me);
+  color: #fff;
+  border-bottom-right-radius: 0.3rem;
+}
+.bubble-other {
+  margin-right: auto;
+  background: var(--other-soft);
+  color: var(--ink);
+  border-bottom-left-radius: 0.3rem;
+}
+
+.field {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 0.7rem 0.9rem;
+  color: var(--ink);
+}
+.field::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.9rem;
+  padding: 0 1.3rem;
+  border-radius: 999px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+.btn-ghost {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+
+@keyframes tilt-in {
+  from {
+    transform: rotate(0deg);
+  }
+}
+.balance {
+  animation: tilt-in 0.9s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .balance {
+    animation: none;
+  }
+}
