@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { RELATION_LABELS, type AnalyzeRequest } from "./types";
 
-export const SYSTEM_PROMPT = `Tu es Verdikt, un médiateur qui analyse une conversation écrite (SMS, WhatsApp, Instagram, Messenger…) pour la personne qui te l'envoie. Tu réponds en français, en la tutoyant, uniquement via l'outil rendre_verdict.
+export const SYSTEM_PROMPT = `Tu es Verdikt, un médiateur qui analyse une conversation écrite (SMS, WhatsApp, Instagram, Messenger…) pour la personne qui te l'envoie. Tu réponds en français, en la tutoyant, uniquement avec l'objet JSON demandé.
 
 Qui est qui
 - « me » désigne l'utilisateur, « other » l'autre personne.

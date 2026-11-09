@@ -14,21 +14,37 @@ async function runModel(body: ReturnType<typeof requestSchema.parse>): Promise<V
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 55_000 });
   const message = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-    max_tokens: 4000,
+    max_tokens: 8000,
     system: SYSTEM_PROMPT,
-    tools: [
-      {
-        name: "rendre_verdict",
-        description: "Rend l'analyse structurée de la conversation.",
-        input_schema: verdictJsonSchema as unknown as Anthropic.Messages.Tool.InputSchema,
-      },
-    ],
-    tool_choice: { type: "tool", name: "rendre_verdict" },
+    output_config: { format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
     messages: [{ role: "user", content: buildUserContent(body) }],
   });
-  const block = message.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") throw new Error("Réponse du modèle sans verdict");
-  return normalize(resultSchema.parse(block.input));
+  const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  if (!text) throw new Error(`Réponse du modèle sans verdict (stop_reason=${message.stop_reason})`);
+  return normalize(resultSchema.parse(JSON.parse(text)));
+}
+
+/** Met le schéma au format strict attendu par la sortie structurée : objets fermés, tous les champs requis, « ou null » en anyOf. */
+function strict(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(strict);
+  if (!node || typeof node !== "object") return node;
+  const src = node as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(src)) {
+    if (k === "properties") {
+      out[k] = Object.fromEntries(Object.entries(v as object).map(([name, child]) => [name, strict(child)]));
+    } else out[k] = strict(v);
+  }
+  if (Array.isArray(src.type)) {
+    const main = src.type.find((t) => t !== "null");
+    const { description, ...rest } = out;
+    return { ...(description ? { description } : {}), anyOf: [strict({ ...rest, type: main }), { type: "null" }] };
+  }
+  if (src.type === "object" && src.properties) {
+    out.additionalProperties = false;
+    out.required = Object.keys(src.properties as object);
+  }
+  return out;
 }
 
 function normalize(v: Verdict): Verdict {
