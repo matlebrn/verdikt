@@ -68,4 +68,11 @@ export const SAMPLE_VERDICT: Verdict = {
     "Propose une réparation concrète : la rejoindre, ou réserver une autre date.",
   ],
   draft: null,
+  verdict_line:
+    "Sur ce coup, c'est plutôt toi qui as tort : tu as oublié le dîner, et au lieu de t'excuser tu as contre-attaqué sur ses retards.",
+  replies: [
+    { intent: "Réparer", text: "T'as raison j'ai complètement zappé, dsl. Je peux passer te chercher là ?" },
+    { intent: "Reproposer", text: "Je m'en veux. On se refait le resto samedi, c'est moi qui invite" },
+  ],
+  transcript: SAMPLE_MESSAGES,
 };

@@ -32,6 +32,8 @@ const ICONS = {
   send: "M4 12l16-8-6 16-3-7-7-1z",
   next: "M5 12h14M13 6l6 6-6 6",
   shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z",
+  reply: "M4 5h16v11H8l-4 4V5zm4 5h8M8 13h5",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zm10 3a3 3 0 100-6 3 3 0 000 6z",
 } as const;
 
 function Icon({ name }: { name: keyof typeof ICONS }) {
@@ -177,6 +179,9 @@ export function VerdictView({ v }: { v: Verdict }) {
           {serious && <span className="chip chip-alert">Situation préoccupante</span>}
         </div>
         <h1 className="mt-3 text-4xl font-extrabold sm:text-5xl">{v.title}</h1>
+        {v.verdict_line && !serious && (
+          <p className="verdict-line mt-4 font-display text-xl font-bold sm:text-2xl">{v.verdict_line}</p>
+        )}
         <p className="mt-4 text-lg">{v.summary}</p>
 
         {v.responsibility && (
@@ -209,6 +214,15 @@ export function VerdictView({ v }: { v: Verdict }) {
             </>
           )}
         </div>
+      )}
+
+      {v.replies && v.replies.length > 0 && (
+        <Section title="Quoi lui répondre maintenant" icon="reply" tint="bg-good-soft text-good">
+          <p className="text-[0.95rem] text-muted">Écrit dans ta façon d'écrire, prêt à copier dans ta messagerie.</p>
+          {v.replies.map((r, i) => (
+            <Suggestion key={i} label={r.intent} text={r.text} />
+          ))}
+        </Section>
       )}
 
       <Section title="Le ton de chacun" icon="tone" tint="bg-me-soft text-me">
@@ -303,6 +317,28 @@ export function VerdictView({ v }: { v: Verdict }) {
             </>
           )}
         </Section>
+      )}
+      {v.transcript && v.transcript.length > 0 && (
+        <details className="card group">
+          <summary className="flex cursor-pointer list-none items-center gap-3 font-display text-xl font-bold">
+            <span className="badge bg-bg text-muted">
+              <Icon name="eye" />
+            </span>
+            Ce que Verdikt a lu
+            <span className="ml-auto text-sm font-normal text-muted group-open:hidden">Afficher</span>
+          </summary>
+          <p className="mt-3 text-[0.95rem] text-muted">
+            Vérifie que les messages et leurs auteurs sont les bons. Si quelque chose est mal lu, corrige-le en saisie à
+            la main ou précise-le dans le contexte, puis relance.
+          </p>
+          <ol className="mt-4 flex flex-col gap-2">
+            {v.transcript.map((m, i) => (
+              <li key={i} className={`bubble ${m.author === "me" ? "bubble-me" : "bubble-other"}`}>
+                {m.text}
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
     </article>
   );

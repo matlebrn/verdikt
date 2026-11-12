@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { MAX_IMAGES, MAX_MANUAL_MESSAGES, MAX_TEXT_CHARS } from "@/lib/config";
-import { RELATION_LABELS, RELATIONS, type AnalyzeRequest, type AnalyzeResponse, type InputMode } from "@/lib/types";
+import { RELATION_LABELS, RELATIONS, type AnalyzeRequest, type AnalyzeResponse, type CoachTurn, type InputMode } from "@/lib/types";
 import { authHeaders, useAuth } from "./auth";
+import { Coach } from "./coach";
 import { VerdictView } from "./verdict";
 
 type Img = { media_type: "image/jpeg"; data: string };
@@ -60,6 +61,8 @@ export function Analyzer() {
   const [restored, setRestored] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [step, setStep] = useState(0);
+  const [coach, setCoach] = useState<CoachTurn[]>([]);
+  const [shared, setShared] = useState(false);
 
   // Pendant l'attente, on montre où en est la lecture.
   useEffect(() => {
@@ -83,6 +86,7 @@ export function Analyzer() {
         if (RELATIONS.includes(saved.relation)) setRelation(saved.relation);
         if (typeof saved.context === "string") setContext(saved.context);
         if (typeof saved.draft === "string") setDraft(saved.draft);
+        if (Array.isArray(saved.coach)) setCoach(saved.coach.slice(-60));
         if (saved.response?.result) {
           setResponse(saved.response);
           setShowResult(saved.showResult !== false);
@@ -98,7 +102,7 @@ export function Analyzer() {
   // À chaque modification : on enregistre sur l'appareil.
   useEffect(() => {
     if (!restored) return;
-    const state = { mode, images, text, meName, messages, line, relation, context, draft, response, showResult };
+    const state = { mode, images, text, meName, messages, line, relation, context, draft, response, showResult, coach };
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
     } catch {
@@ -109,7 +113,7 @@ export function Analyzer() {
         /* stockage indisponible */
       }
     }
-  }, [restored, mode, images, text, meName, messages, line, relation, context, draft, response, showResult]);
+  }, [restored, mode, images, text, meName, messages, line, relation, context, draft, response, showResult, coach]);
 
   function reset() {
     setImages([]);
@@ -124,6 +128,7 @@ export function Analyzer() {
     setNotice(null);
     setResponse(null);
     setShowResult(false);
+    setCoach([]);
     window.scrollTo({ top: 0 });
   }
 
@@ -214,6 +219,7 @@ export function Analyzer() {
         return;
       }
       setResponse(data as AnalyzeResponse);
+      setCoach([]);
       setShowResult(true);
       requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch {
@@ -223,10 +229,32 @@ export function Analyzer() {
     }
   }
 
+  async function share(r: AnalyzeResponse) {
+    const v = r.result;
+    const parts = [`Verdikt : ${v.title}`, v.verdict_line || v.summary];
+    if (v.responsibility) parts.push(`${v.me_name} ${v.responsibility.me} % · ${v.other_name} ${v.responsibility.other} %`);
+    const text = parts.join("\n");
+    const url = window.location.origin;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Verdikt", text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch {
+      /* partage annulé */
+    }
+  }
+
   if (response && showResult) {
     return (
       <div ref={resultRef} className="pt-2">
         <VerdictView v={response.result} />
+        <div className="mt-5">
+          <Coach verdict={response.result} relation={relation} context={context} turns={coach} onTurns={setCoach} />
+        </div>
         <div className="card mt-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -240,6 +268,9 @@ export function Analyzer() {
           </button>
           <button type="button" className="btn btn-danger" onClick={askReset}>
             Réinitialiser
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => share(response)}>
+            {shared ? "Copié" : "Partager le verdict"}
           </button>
           {response.id && (
             <Link href="/historique" className="btn btn-ghost">

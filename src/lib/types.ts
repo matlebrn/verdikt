@@ -93,6 +93,10 @@ export const resultSchema = z.object({
   draft: z
     .object({ reception: z.string(), risks: z.array(z.string()), improved: z.string() })
     .nullish(),
+  // Ajoutés en novembre 2026 : absents des analyses plus anciennes de l'historique.
+  verdict_line: z.string().optional(),
+  replies: z.array(z.object({ intent: z.string(), text: z.string() })).optional(),
+  transcript: z.array(z.object({ author: z.enum(["me", "other"]), text: z.string() })).optional(),
 });
 
 export type Verdict = z.infer<typeof resultSchema>;
@@ -123,8 +127,23 @@ export const verdictJsonSchema = {
   type: "object",
   properties: {
     readable: { type: "boolean", description: "false si ce n'est pas une conversation exploitable" },
+    transcript: {
+      type: "array",
+      description:
+        "La conversation telle que tu l'as lue, dans l'ordre, message par message (80 messages maximum : les plus récents si c'est plus long). Texte recopié tel quel, fautes comprises.",
+      items: {
+        type: "object",
+        properties: { author: { type: "string", enum: ["me", "other"] }, text: { type: "string" } },
+        required: ["author", "text"],
+      },
+    },
     unreadable_reason: { type: ["string", "null"] },
     title: { type: "string", description: "Titre court du désaccord (6 mots max)" },
+    verdict_line: {
+      type: "string",
+      description:
+        "Le verdict en une phrase directe adressée à l'utilisateur, qui tranche (ex. : « Sur ce coup, c'est plutôt toi qui as tort : tu as oublié le dîner et tu as contre-attaqué au lieu de t'excuser. »). Vide si alert.level = serious.",
+    },
     summary: { type: "string", description: "Ce qui s'est passé, en 2 à 3 phrases" },
     me_name: { type: "string", description: "Prénom de l'utilisateur s'il est connu, sinon « Toi »" },
     other_name: { type: "string", description: "Prénom de l'autre personne s'il est connu, sinon « L'autre »" },
@@ -176,6 +195,22 @@ export const verdictJsonSchema = {
         required: ["original", "issue", "better"],
       },
     },
+    replies: {
+      type: "array",
+      description:
+        "2 ou 3 réponses que l'utilisateur peut envoyer maintenant pour la suite de l'échange, chacune avec une intention différente. Vide si alert.level = serious.",
+      items: {
+        type: "object",
+        properties: {
+          intent: {
+            type: "string",
+            description: "L'intention en 2 à 4 mots (ex. : « Apaiser », « Poser une limite », « Clarifier », « Proposer un appel »)",
+          },
+          text: { type: "string", description: "Le message à envoyer, écrit dans le style de l'utilisateur" },
+        },
+        required: ["intent", "text"],
+      },
+    },
     strengths: { type: "array", items: { type: "string" }, description: "Ce que l'utilisateur a bien fait (0 à 3)" },
     advice: { type: "array", items: { type: "string" }, description: "2 à 4 conseils concrets pour la suite" },
     draft: {
@@ -191,7 +226,9 @@ export const verdictJsonSchema = {
   },
   required: [
     "readable",
+    "transcript",
     "title",
+    "verdict_line",
     "summary",
     "me_name",
     "other_name",
@@ -204,6 +241,36 @@ export const verdictJsonSchema = {
     "rewrites",
     "strengths",
     "advice",
+    "replies",
     "draft",
   ],
+} as const;
+
+/* ---------- Coach (questions après le verdict) ---------- */
+
+export const coachRequestSchema = z.object({
+  verdict: resultSchema,
+  relation: z.enum(RELATIONS).optional(),
+  context: z.string().max(1500).optional(),
+  history: z
+    .array(z.object({ role: z.enum(["user", "coach"]), text: z.string().max(4000) }))
+    .max(40),
+  question: z.string().trim().min(2).max(1500),
+});
+export type CoachRequest = z.infer<typeof coachRequestSchema>;
+
+export type CoachTurn = { role: "user" | "coach"; text: string; message?: string | null };
+
+export const coachJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    answer: { type: "string", description: "Ta réponse à la question, en français clair, 1 à 6 phrases" },
+    message: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+      description:
+        "Un message prêt à envoyer à l'autre personne, seulement si la question en appelle un (sinon null), écrit dans le style de l'utilisateur",
+    },
+  },
+  required: ["answer", "message"],
 } as const;

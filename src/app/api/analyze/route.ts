@@ -4,17 +4,17 @@ import { SAMPLE_VERDICT } from "@/lib/sample";
 import { ConfigError, identify, quota, refund, serverClient } from "@/lib/server";
 import { requestSchema, resultSchema, verdictJsonSchema, type AnalyzeResponse, type Verdict } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const fail = (status: number, error: string, extra?: object) => Response.json({ error, ...extra }, { status });
 
 async function runModel(body: ReturnType<typeof requestSchema.parse>): Promise<Verdict> {
   if (process.env.VERDIKT_MOCK === "1") return SAMPLE_VERDICT;
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 55_000 });
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 110_000 });
   const message = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-    max_tokens: 8000,
+    max_tokens: 12000,
     system: SYSTEM_PROMPT,
     output_config: { effort: (process.env.ANTHROPIC_EFFORT as "low" | "medium" | "high" | undefined) || "low", format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
     messages: [{ role: "user", content: buildUserContent(body) }],
@@ -48,7 +48,7 @@ function strict(node: unknown): unknown {
 }
 
 function normalize(v: Verdict): Verdict {
-  if (v.alert.level === "serious") return { ...v, responsibility: null };
+  if (v.alert.level === "serious") return { ...v, responsibility: null, replies: [], verdict_line: "" };
   if (v.responsibility) {
     const total = v.responsibility.me + v.responsibility.other;
     const me = total > 0 ? Math.round((v.responsibility.me / total) * 100) : 50;

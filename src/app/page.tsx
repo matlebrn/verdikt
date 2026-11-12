@@ -30,6 +30,8 @@ const RESULTS: [string, string][] = [
   ["chip-alert", "Le message précis où la discussion a dérapé."],
   ["chip-good", "Tes messages reformulés dans ta façon d'écrire, prêts à copier."],
   ["chip-warn", "Un avis sur ta réponse avant que tu l'envoies."],
+  ["chip-good", "Deux ou trois réponses prêtes à envoyer pour la suite."],
+  ["chip-me", "Un coach à qui poser tes questions après le verdict."],
 ];
 
 export default function Home() {
