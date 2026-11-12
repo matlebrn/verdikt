@@ -35,6 +35,7 @@ export function Header() {
       </Link>
       <nav className="flex items-center gap-1" aria-label="Navigation principale">
         {link("/analyser", "Analyser")}
+        {link("/offres", "Offres")}
         {session && link("/historique", "Historique")}
         {!loading && link("/connexion", session ? "Compte" : "Connexion")}
       </nav>

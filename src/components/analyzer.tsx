@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { MAX_IMAGES, MAX_MANUAL_MESSAGES, MAX_TEXT_CHARS } from "@/lib/config";
+import { MAX_IMAGES, MAX_MANUAL_MESSAGES, PLANS, type PlanId } from "@/lib/config";
 import { RELATION_LABELS, RELATIONS, type AnalyzeRequest, type AnalyzeResponse, type CoachTurn, type InputMode } from "@/lib/types";
 import { authHeaders, useAuth } from "./auth";
 import { Coach } from "./coach";
@@ -56,6 +56,11 @@ export function Analyzer() {
   const [notice, setNotice] = useState<string | null>(null);
   const [response, setResponse] = useState<AnalyzeResponse | null>(null);
   const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
+  const [planId, setPlanId] = useState<PlanId>("guest");
+  const [upgrade, setUpgrade] = useState(false);
+  const plan = PLANS[planId];
+  const maxImages = plan.images;
+  const maxChars = plan.chars;
   const resultRef = useRef<HTMLDivElement>(null);
   const lineRef = useRef<HTMLInputElement>(null);
   const [restored, setRestored] = useState(false);
@@ -144,6 +149,7 @@ export function Analyzer() {
       const res = await fetch("/api/quota", { headers: await authHeaders() }).catch(() => null);
       const data = res?.ok ? await res.json() : null;
       if (!cancelled && data && typeof data.remaining === "number") setQuota(data);
+      if (!cancelled && data?.plan && data.plan in PLANS) setPlanId(data.plan);
     })();
     return () => {
       cancelled = true;
@@ -153,9 +159,9 @@ export function Analyzer() {
   async function addImages(files: FileList | null) {
     if (!files) return;
     setError(null);
-    const room = MAX_IMAGES - images.length;
+    const room = maxImages - images.length;
     const picked = Array.from(files).slice(0, room);
-    if (files.length > room) setNotice(`${MAX_IMAGES} captures maximum : les suivantes n'ont pas été ajoutées.`);
+    if (files.length > room) setNotice(`${maxImages} captures maximum avec ton offre : les suivantes n'ont pas été ajoutées.`);
     try {
       const next = await Promise.all(picked.map(shrink));
       setImages((cur) => [...cur, ...next]);
@@ -167,8 +173,8 @@ export function Analyzer() {
   async function loadExport(file: File | undefined) {
     if (!file) return;
     const raw = await file.text();
-    if (raw.length > MAX_TEXT_CHARS) {
-      setText(raw.slice(-MAX_TEXT_CHARS));
+    if (raw.length > maxChars) {
+      setText(raw.slice(-maxChars));
       setNotice("Conversation très longue : seule la partie la plus récente a été gardée.");
     } else {
       setText(raw);
@@ -194,6 +200,7 @@ export function Analyzer() {
     setBusy(true);
     setStep(0);
     setError(null);
+    setUpgrade(false);
     setNotice(null);
     const common = {
       relation: relation || undefined,
@@ -204,7 +211,7 @@ export function Analyzer() {
       mode === "captures"
         ? { mode, images: images.map(({ media_type, data }) => ({ media_type, data })), ...common }
         : mode === "export"
-          ? { mode, text: text.slice(-MAX_TEXT_CHARS), meName: meName.trim(), ...common }
+          ? { mode, text: text.slice(-maxChars), meName: meName.trim(), ...common }
           : { mode, messages, ...common };
     try {
       const res = await fetch("/api/analyze", {
@@ -216,6 +223,7 @@ export function Analyzer() {
       if (typeof data?.remaining === "number") setQuota({ remaining: data.remaining, limit: data.limit });
       if (!res.ok || !data?.result) {
         setError(data?.error || "L'analyse n'a pas abouti. Réessaie dans un instant.");
+        setUpgrade(Boolean(data?.upgrade));
         return;
       }
       setResponse(data as AnalyzeResponse);
@@ -331,7 +339,7 @@ export function Analyzer() {
         {mode === "captures" && (
           <div>
             <p className="text-muted">
-              Jusqu'à {MAX_IMAGES} captures, dans l'ordre. Tes messages sont ceux de droite.
+              Jusqu'à {maxImages} captures, dans l'ordre. Tes messages sont ceux de droite.
             </p>
             {images.length > 0 && (
               <ul className="mt-4 flex gap-3 overflow-x-auto pb-2">
@@ -351,7 +359,7 @@ export function Analyzer() {
                 ))}
               </ul>
             )}
-            {images.length < MAX_IMAGES && (
+            {images.length < maxImages && (
               <label className="btn btn-ghost mt-4 cursor-pointer">
                 {images.length ? "Ajouter des captures" : "Choisir des captures"}
                 <input
@@ -395,7 +403,7 @@ export function Analyzer() {
                 id="export-text"
                 className="field min-h-48 text-[0.95rem]"
                 value={text}
-                maxLength={MAX_TEXT_CHARS}
+                maxLength={maxChars}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={"[09/11/2026 20:14] Camille : T'es où ?\n[09/11/2026 20:15] Matéo : J'arrive"}
               />
@@ -540,6 +548,14 @@ export function Analyzer() {
         {error && (
           <p role="alert" className="mb-3 rounded-xl bg-alert-soft px-4 py-3 font-medium">
             {error}
+            {upgrade && (
+              <>
+                {" "}
+                <Link href={session ? "/offres" : "/connexion"} className="underline underline-offset-2">
+                  {session ? "Voir Verdikt+" : "Créer un compte gratuit"}
+                </Link>
+              </>
+            )}
           </p>
         )}
         {busy && (
@@ -566,11 +582,13 @@ export function Analyzer() {
             {quota.remaining > 0
               ? `Il te reste ${quota.remaining} analyse${quota.remaining > 1 ? "s" : ""} sur ${quota.limit} aujourd'hui.`
               : "Tu as utilisé toutes tes analyses du jour."}
-            {!session && (
+            {planId !== "plus" && (
               <>
                 {" "}
-                <Link href="/connexion" className="underline underline-offset-2">
-                  Avec un compte : 10 par jour et un historique.
+                <Link href={session ? "/offres" : "/connexion"} className="underline underline-offset-2">
+                  {session
+                    ? `Avec Verdikt+ : ${PLANS.plus.analyses} par jour et l'analyse approfondie.`
+                    : `Avec un compte gratuit : ${PLANS.free.analyses} par jour et un historique.`}
                 </Link>
               </>
             )}

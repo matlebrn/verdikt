@@ -337,3 +337,10 @@ details > summary::-webkit-details-marker {
 @media (prefers-reduced-motion: reduce) {
   .typing i { animation: none; opacity: 0.6; }
 }
+
+.plus-card {
+  border: 2px solid var(--me);
+  background:
+    radial-gradient(120% 80% at 100% 0%, var(--other-soft) 0, transparent 55%),
+    linear-gradient(180deg, var(--me-soft) 0, var(--surface) 9rem);
+}

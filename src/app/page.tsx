@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Balance } from "@/components/verdict";
-import { GUEST_LIMIT, USER_LIMIT } from "@/lib/config";
+import { PLANS } from "@/lib/config";
 import { SAMPLE_MESSAGES, SAMPLE_VERDICT } from "@/lib/sample";
 
 const WAYS = [
@@ -48,7 +48,7 @@ export default function Home() {
         <Link href="/analyser" className="btn btn-primary">
           Analyser une conversation
         </Link>
-        <span className="text-sm text-muted">Gratuit, sans compte, {GUEST_LIMIT} analyses par jour</span>
+        <span className="text-sm text-muted">Gratuit, sans compte, {PLANS.guest.analyses} analyses par jour</span>
       </div>
 
       <section aria-label="Exemple d'analyse" className="card mt-12">
@@ -103,7 +103,8 @@ export default function Home() {
             Analyser une conversation
           </Link>
           <span className="text-sm text-muted">
-            {GUEST_LIMIT} analyses par jour sans compte, {USER_LIMIT} avec un compte et un historique.
+            {PLANS.guest.analyses} analyses par jour sans compte, {PLANS.free.analyses} avec un compte gratuit et un historique.{" "}
+            <Link href="/offres" className="underline underline-offset-2">Voir Verdikt+</Link>
           </span>
         </div>
       </section>

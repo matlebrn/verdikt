@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { COACH_GUEST_LIMIT, COACH_USER_LIMIT } from "@/lib/config";
+import { PLANS } from "@/lib/config";
 import { buildCoachMessages, COACH_PROMPT } from "@/lib/prompt";
 import { ConfigError, identify, quota, refund } from "@/lib/server";
 import { coachJsonSchema, coachRequestSchema } from "@/lib/types";
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   try {
     const base = await identify(req);
     // Compteur à part : poser des questions ne consomme pas les analyses du jour.
-    id = { ...base, subject: `c:${base.subject}`, limit: base.userId ? COACH_USER_LIMIT : COACH_GUEST_LIMIT };
+    id = { ...base, subject: `c:${base.subject}`, limit: PLANS[base.plan].questions };
     q = await quota(id, true);
   } catch (e) {
     if (e instanceof ConfigError) return fail(503, "Le serveur n'est pas entièrement configuré.");
@@ -36,10 +36,12 @@ export async function POST(req: Request) {
   if (!q.allowed) {
     return fail(
       429,
-      id.userId
+      id.plan === "plus"
         ? `Tu as posé tes ${q.limit} questions du jour. Elles reviennent demain.`
-        : `Tu as posé tes ${q.limit} questions gratuites du jour. Avec un compte, tu en as ${COACH_USER_LIMIT}.`,
-      { remaining: 0, limit: q.limit },
+        : id.plan === "free"
+          ? `Tu as posé tes ${q.limit} questions du jour. Avec Verdikt+, tu en as ${PLANS.plus.questions}.`
+          : `Tu as posé tes ${q.limit} questions gratuites du jour. Avec un compte, tu en as ${PLANS.free.questions}.`,
+      { remaining: 0, limit: q.limit, upgrade: id.plan !== "plus" },
     );
   }
 

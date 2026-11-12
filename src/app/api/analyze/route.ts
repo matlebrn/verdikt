@@ -1,14 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildUserContent, SYSTEM_PROMPT } from "@/lib/prompt";
 import { SAMPLE_VERDICT } from "@/lib/sample";
-import { ConfigError, identify, quota, refund, serverClient } from "@/lib/server";
+import { PLANS } from "@/lib/config";
+import { ConfigError, identify, quota, refund, serverClient, type Identity } from "@/lib/server";
 import { requestSchema, resultSchema, verdictJsonSchema, type AnalyzeResponse, type Verdict } from "@/lib/types";
 
 export const maxDuration = 120;
 
 const fail = (status: number, error: string, extra?: object) => Response.json({ error, ...extra }, { status });
 
-async function runModel(body: ReturnType<typeof requestSchema.parse>): Promise<Verdict> {
+async function runModel(body: ReturnType<typeof requestSchema.parse>, deep: boolean): Promise<Verdict> {
   if (process.env.VERDIKT_MOCK === "1") return SAMPLE_VERDICT;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 110_000 });
@@ -16,7 +17,7 @@ async function runModel(body: ReturnType<typeof requestSchema.parse>): Promise<V
     model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
     max_tokens: 12000,
     system: SYSTEM_PROMPT,
-    output_config: { effort: (process.env.ANTHROPIC_EFFORT as "low" | "medium" | "high" | undefined) || "low", format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
+    output_config: { effort: deep ? "medium" : (process.env.ANTHROPIC_EFFORT as "low" | "medium" | "high" | undefined) || "low", format: { type: "json_schema", schema: strict(verdictJsonSchema) as Record<string, unknown> } },
     messages: [{ role: "user", content: buildUserContent(body) }],
   });
   const text = message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
@@ -72,10 +73,17 @@ export async function POST(req: Request) {
     return fail(503, "L'analyse n'est pas encore activée : la clé de l'IA n'est pas configurée sur le serveur.");
   }
 
-  let id;
+  let id: Identity;
   let q;
   try {
     id = await identify(req);
+    const plan = PLANS[id.plan];
+    if (body.mode === "captures" && body.images.length > plan.images) {
+      return fail(403, `Ton offre permet ${plan.images} captures par analyse. Avec Verdikt+, tu peux en envoyer ${PLANS.plus.images}.`, { upgrade: true });
+    }
+    if (body.mode === "export" && body.text.length > plan.chars) {
+      body.text = body.text.slice(-plan.chars);
+    }
     q = await quota(id, true);
   } catch (e) {
     if (e instanceof ConfigError) return fail(503, "Le serveur n'est pas entièrement configuré.");
@@ -85,16 +93,18 @@ export async function POST(req: Request) {
   if (!q.allowed) {
     return fail(
       429,
-      id.userId
+      id.plan === "plus"
         ? `Tu as utilisé tes ${q.limit} analyses du jour. Elles reviennent demain.`
-        : `Tu as utilisé tes ${q.limit} analyses gratuites du jour. Crée un compte pour en avoir davantage.`,
-      { remaining: 0, limit: q.limit },
+        : id.plan === "free"
+          ? `Tu as utilisé tes ${q.limit} analyses du jour. Avec Verdikt+, tu en as ${PLANS.plus.analyses} par jour.`
+          : `Tu as utilisé tes ${q.limit} analyses gratuites du jour. Crée un compte gratuit pour en avoir ${PLANS.free.analyses}.`,
+      { remaining: 0, limit: q.limit, upgrade: true },
     );
   }
 
   let result: Verdict;
   try {
-    result = await runModel(body);
+    result = await runModel(body, PLANS[id.plan].deep);
   } catch (e) {
     console.error(e);
     await refund(id);
